@@ -1,4 +1,5 @@
 import * as cdk from "aws-cdk-lib";
+import * as path from "node:path";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
@@ -71,6 +72,24 @@ export class ReactCorsSpaStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
+
+    const deployment = new cdk.aws_s3_deployment.BucketDeployment(
+      this,
+      "DeployWebsite",
+      {
+        sources: [
+          cdk.aws_s3_deployment.Source.asset(
+            path.join(__dirname, "../react-cors-spa/build")
+          ),
+        ],
+        destinationBucket: appBucket,
+      }
+    );
+
+    // new ConstructThatReadsFromTheBucket(this, 'Consumer', {
+    //   // Use 'deployment.deployedBucket' instead of 'websiteBucket' here
+    //   bucket: deployment.deployedBucket,
+    // });
 
     // Adding an existing Lambda@Edge function created in a different stack
     // to a CloudFront distribution.

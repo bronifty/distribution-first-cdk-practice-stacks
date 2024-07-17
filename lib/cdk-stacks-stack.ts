@@ -6,10 +6,14 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
+import { getSuffixFromStack } from "../utils";
+import { NotesApi } from "../apig/notes-api";
 
 export class ReactCorsSpaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const suffix = getSuffixFromStack(this);
 
     // API Gateway
     const api = new apigateway.RestApi(this, "SimpleAPI", {
@@ -20,38 +24,42 @@ export class ReactCorsSpaStack extends cdk.Stack {
     const helloResource = api.root.addResource("hello");
     helloResource.addMethod(
       "GET",
-      new apigateway.MockIntegration({
-        integrationResponses: [
-          {
-            statusCode: "200",
-            responseParameters: {
-              "method.response.header.Access-Control-Allow-Origin": "'*'",
-            },
-            responseTemplates: {
-              "application/json": '{"message": "Hello World!"}',
-            },
-          },
-        ],
-        passthroughBehavior: apigateway.PassthroughBehavior.WHEN_NO_MATCH,
-        requestTemplates: {
-          "application/json": '{"statusCode": 200}',
-        },
-      }),
-      {
-        methodResponses: [
-          {
-            statusCode: "200",
-            responseParameters: {
-              "method.response.header.Access-Control-Allow-Origin": true,
-            },
-          },
-        ],
-      }
+      new apigateway.LambdaIntegration(new NotesApi(this, "list").handler)
     );
+    // helloResource.addMethod(
+    //   "GET",
+    //   new apigateway.MockIntegration({
+    //     integrationResponses: [
+    //       {
+    //         statusCode: "200",
+    //         responseParameters: {
+    //           "method.response.header.Access-Control-Allow-Origin": "'*'",
+    //         },
+    //         responseTemplates: {
+    //           "application/json": '{"message": "Hello World!"}',
+    //         },
+    //       },
+    //     ],
+    //     passthroughBehavior: apigateway.PassthroughBehavior.WHEN_NO_MATCH,
+    //     requestTemplates: {
+    //       "application/json": '{"statusCode": 200}',
+    //     },
+    //   }),
+    //   {
+    //     methodResponses: [
+    //       {
+    //         statusCode: "200",
+    //         responseParameters: {
+    //           "method.response.header.Access-Control-Allow-Origin": true,
+    //         },
+    //       },
+    //     ],
+    //   }
+    // );
 
     // S3 Buckets
     const loggingBucket = new s3.Bucket(this, "LoggingBucket", {
-      bucketName: `react-cors-spa-${api.restApiId}-logs`,
+      bucketName: `react-cors-spa-${suffix}-logs`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
       publicReadAccess: false,
@@ -62,7 +70,7 @@ export class ReactCorsSpaStack extends cdk.Stack {
     });
 
     const appBucket = new s3.Bucket(this, "S3Bucket", {
-      bucketName: `react-cors-spa-${api.restApiId}`,
+      bucketName: `react-cors-spa-${suffix}`,
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
       publicReadAccess: false,

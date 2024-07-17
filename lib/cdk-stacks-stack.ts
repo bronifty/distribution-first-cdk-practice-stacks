@@ -7,7 +7,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import { getSuffixFromStack } from "../utils";
-import { NotesApi } from "../apig/notes-api";
+import { NotesApi } from "../lambda/notes-api";
 
 export class ReactCorsSpaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -15,86 +15,47 @@ export class ReactCorsSpaStack extends cdk.Stack {
 
     const suffix = getSuffixFromStack(this);
 
-    // API Gateway
-    const api = new apigateway.RestApi(this, "SimpleAPI", {
-      description: "A simple CORS compliant API",
-      endpointTypes: [apigateway.EndpointType.REGIONAL],
-    });
+    // // API Gateway
+    // const api = new apigateway.RestApi(this, "SimpleAPI", {
+    //   description: "A simple CORS compliant API",
+    //   endpointTypes: [apigateway.EndpointType.REGIONAL],
+    // });
 
-    const apigLambdaFunction = new NotesApi(this, "list").handler;
+    // const apigLambdaFunction = new NotesApi(this, "list").handler;
 
-    const helloResource = api.root.addResource("hello");
-    helloResource.addMethod(
-      "GET",
-      new apigateway.LambdaIntegration(apigLambdaFunction)
-    );
+    // const helloResource = api.root.addResource("hello");
     // helloResource.addMethod(
     //   "GET",
-    //   new apigateway.MockIntegration({
-    //     integrationResponses: [
-    //       {
-    //         statusCode: "200",
-    //         responseParameters: {
-    //           "method.response.header.Access-Control-Allow-Origin": "'*'",
-    //         },
-    //         responseTemplates: {
-    //           "application/json": '{"message": "Hello World!"}',
-    //         },
-    //       },
-    //     ],
-    //     passthroughBehavior: apigateway.PassthroughBehavior.WHEN_NO_MATCH,
-    //     requestTemplates: {
-    //       "application/json": '{"statusCode": 200}',
-    //     },
-    //   }),
-    //   {
-    //     methodResponses: [
-    //       {
-    //         statusCode: "200",
-    //         responseParameters: {
-    //           "method.response.header.Access-Control-Allow-Origin": true,
-    //         },
-    //       },
-    //     ],
-    //   }
+    //   new apigateway.LambdaIntegration(apigLambdaFunction)
     // );
 
     // S3 Buckets
-    const loggingBucket = new s3.Bucket(this, "LoggingBucket", {
-      bucketName: `react-cors-spa-${suffix}-logs`,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      versioned: true,
-      publicReadAccess: false,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
-    });
+    // const loggingBucket = new s3.Bucket(this, "LoggingBucket", {
+    //   bucketName: `react-cors-spa-${suffix}-logs`,
+    //   publicReadAccess: false,
+    //   blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    //   removalPolicy: cdk.RemovalPolicy.DESTROY,
+    //   autoDeleteObjects: true,
+    // });
 
     const appBucket = new s3.Bucket(this, "S3Bucket", {
       bucketName: `react-cors-spa-${suffix}`,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      versioned: true,
       publicReadAccess: false,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      serverAccessLogsBucket: loggingBucket,
-      serverAccessLogsPrefix: "s3-access-logs",
+      // serverAccessLogsBucket: loggingBucket,
+      // serverAccessLogsPrefix: "s3-access-logs",
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    const deployment = new cdk.aws_s3_deployment.BucketDeployment(
-      this,
-      "DeployWebsite",
-      {
-        sources: [
-          cdk.aws_s3_deployment.Source.asset(
-            path.join(__dirname, "../react-cors-spa/build")
-          ),
-        ],
-        destinationBucket: appBucket,
-      }
-    );
+    new cdk.aws_s3_deployment.BucketDeployment(this, "DeployWebsite", {
+      sources: [
+        cdk.aws_s3_deployment.Source.asset(
+          `${__dirname}/../react-cors-spa/build`
+        ),
+      ],
+      destinationBucket: appBucket,
+    });
 
     // new ConstructThatReadsFromTheBucket(this, 'Consumer', {
     //   // Use 'deployment.deployedBucket' instead of 'websiteBucket' here
@@ -136,20 +97,20 @@ export class ReactCorsSpaStack extends cdk.Stack {
       }
     );
 
-    const originRequestFunction = new cdk.aws_lambda_nodejs.NodejsFunction(
-      this,
-      "originRequestFunction",
-      {
-        handler: "handler",
-        entry: `${__dirname}/../cf/edge-lambda.ts`,
-      }
-    );
+    // const originRequestFunction = new cdk.aws_lambda_nodejs.NodejsFunction(
+    //   this,
+    //   "originRequestFunction",
+    //   {
+    //     handler: "handler",
+    //     entry: `${__dirname}/../cf/edge-lambda.ts`,
+    //   }
+    // );
     // Grant CloudFront permission to use the Lambda@Edge function
-    const originRequestFunctionVersion = originRequestFunction.currentVersion;
-    originRequestFunctionVersion.addPermission("LambdaEdgePermission", {
-      principal: new iam.ServicePrincipal("edgelambda.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-    });
+    // const originRequestFunctionVersion = originRequestFunction.currentVersion;
+    // originRequestFunctionVersion.addPermission("LambdaEdgePermission", {
+    //   principal: new iam.ServicePrincipal("edgelambda.amazonaws.com"),
+    //   action: "lambda:InvokeFunction",
+    // });
 
     const edgeLambdaFunction = new NotesApi(this, "edge-hello").handler;
     // Grant CloudFront permission to use the Lambda@Edge function
@@ -168,34 +129,33 @@ export class ReactCorsSpaStack extends cdk.Stack {
         originRequestPolicy: cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
         responseHeadersPolicy:
           cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
-        functionAssociations: [
-          {
-            function: viewerRequestFunction,
-            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
-          },
-        ],
-        edgeLambdas: [
-          {
-            functionVersion: edgeLambdaFunctionVersion,
-            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
-          },
-        ],
+        // functionAssociations: [
+        //   {
+        //     function: viewerRequestFunction,
+        //     eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        //   },
+        // ],
+        // edgeLambdas: [
+        //   {
+        //     functionVersion: edgeLambdaFunctionVersion,
+        //     eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+        //   },
+        // ],
       },
       defaultRootObject: "index.html",
-      enableLogging: true,
-      logBucket: loggingBucket,
-      logFilePrefix: "cloudfront-access-logs",
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      // enableLogging: true,
+      // logBucket: loggingBucket,
+      // logFilePrefix: "cloudfront-access-logs",
     });
 
-    distribution.addBehavior("v1/hello", new origins.RestApiOrigin(api), {
-      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-      originRequestPolicy:
-        cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-      responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
-    });
+    // distribution.addBehavior("v1/hello", new origins.RestApiOrigin(api), {
+    //   viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    //   allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+    //   cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+    //   originRequestPolicy:
+    //     cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+    //   responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+    // });
 
     distribution.addBehavior("/api/hello", new origins.S3Origin(appBucket), {
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -226,9 +186,9 @@ export class ReactCorsSpaStack extends cdk.Stack {
     );
 
     // Outputs
-    new cdk.CfnOutput(this, "APIEndpoint", {
-      value: api.url + "hello",
-    });
+    // new cdk.CfnOutput(this, "APIEndpoint", {
+    //   value: api.url + "hello",
+    // });
 
     new cdk.CfnOutput(this, "BucketName", {
       value: appBucket.bucketName,

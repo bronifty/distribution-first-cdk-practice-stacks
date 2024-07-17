@@ -7,4 +7,4 @@ function getSuffixFromStack(stack: cdk.Stack) {
 }
 
 export { getSuffixFromStack };
-export { success, failure } from "./response";
+export { success, failure, edgeSuccess, edgeFailure } from "./response";

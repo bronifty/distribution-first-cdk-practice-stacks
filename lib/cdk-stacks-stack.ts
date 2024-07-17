@@ -21,10 +21,12 @@ export class ReactCorsSpaStack extends cdk.Stack {
       endpointTypes: [apigateway.EndpointType.REGIONAL],
     });
 
+    const lambdaFunction = new NotesApi(this, "list").handler;
+
     const helloResource = api.root.addResource("hello");
     helloResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(new NotesApi(this, "list").handler)
+      new apigateway.LambdaIntegration(lambdaFunction)
     );
     // helloResource.addMethod(
     //   "GET",

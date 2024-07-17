@@ -21,12 +21,12 @@ export class ReactCorsSpaStack extends cdk.Stack {
       endpointTypes: [apigateway.EndpointType.REGIONAL],
     });
 
-    const lambdaFunction = new NotesApi(this, "list").handler;
+    const apigLambdaFunction = new NotesApi(this, "list").handler;
 
     const helloResource = api.root.addResource("hello");
     helloResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(lambdaFunction)
+      new apigateway.LambdaIntegration(apigLambdaFunction)
     );
     // helloResource.addMethod(
     //   "GET",
@@ -122,6 +122,43 @@ export class ReactCorsSpaStack extends cdk.Stack {
     //   },
     // });
 
+    const store = new cloudfront.KeyValueStore(this, "KeyValueStore");
+    const viewerRequestFunction = new cdk.aws_cloudfront.Function(
+      this,
+      "Function",
+      {
+        code: cdk.aws_cloudfront.FunctionCode.fromInline(
+          "function handler(event) { return event.request }"
+        ),
+        // Note that JS_2_0 must be used for Key Value Store support
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        keyValueStore: store,
+      }
+    );
+
+    const originRequestFunction = new cdk.aws_lambda_nodejs.NodejsFunction(
+      this,
+      "originRequestFunction",
+      {
+        handler: "handler",
+        entry: `${__dirname}/../cf/edge-lambda.ts`,
+      }
+    );
+    // Grant CloudFront permission to use the Lambda@Edge function
+    const originRequestFunctionVersion = originRequestFunction.currentVersion;
+    originRequestFunctionVersion.addPermission("LambdaEdgePermission", {
+      principal: new iam.ServicePrincipal("edgelambda.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+    });
+
+    const edgeLambdaFunction = new NotesApi(this, "edge-hello").handler;
+    // Grant CloudFront permission to use the Lambda@Edge function
+    const edgeLambdaFunctionVersion = edgeLambdaFunction.currentVersion;
+    edgeLambdaFunctionVersion.addPermission("LambdaEdgePermission", {
+      principal: new iam.ServicePrincipal("edgelambda.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+    });
+
     const distribution = new cloudfront.Distribution(this, "CFDistribution", {
       defaultBehavior: {
         origin: new origins.S3Origin(appBucket),
@@ -131,6 +168,18 @@ export class ReactCorsSpaStack extends cdk.Stack {
         originRequestPolicy: cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
         responseHeadersPolicy:
           cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+        functionAssociations: [
+          {
+            function: viewerRequestFunction,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
+        edgeLambdas: [
+          {
+            functionVersion: edgeLambdaFunctionVersion,
+            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+          },
+        ],
       },
       defaultRootObject: "index.html",
       enableLogging: true,
@@ -146,6 +195,20 @@ export class ReactCorsSpaStack extends cdk.Stack {
       originRequestPolicy:
         cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
       responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+    });
+
+    distribution.addBehavior("/api/hello", new origins.S3Origin(appBucket), {
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+      cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+      originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+      edgeLambdas: [
+        {
+          functionVersion: edgeLambdaFunctionVersion,
+          eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+          includeBody: true, // Include this if you need to access the request body
+        },
+      ],
     });
 
     // S3 Bucket Policy

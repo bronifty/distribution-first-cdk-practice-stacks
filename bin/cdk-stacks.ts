@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { ReactCorsSpaStack } from "../lib/cdk-stacks-stack";
+import { DistroFirstStack } from "../lib/distro-first-stack";
 
 const app = new cdk.App();
 
-const reactCorsSpaStack = new ReactCorsSpaStack(app, "ReactCorsSpaStack", {
+const distroFirstStack = new DistroFirstStack(app, "DistroFirstStack", {
   // ... existing props ...
 });
